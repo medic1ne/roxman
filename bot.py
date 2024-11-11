@@ -329,14 +329,6 @@ class Major:
                         f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
                         f"{Fore.CYAN + Style.BRIGHT}[ {name} ]{Style.RESET_ALL}"
                     )
-                    await self.get_choices_durov(token=token)
-                    await asyncio.sleep(random.randint(3, 5))
-                    await self.coins(token=token, reward_coins=915)
-                    await asyncio.sleep(random.randint(3, 5))
-                    await self.roulette(token=token)
-                    await asyncio.sleep(random.randint(3, 5))
-                    await self.swipe_coin(token=token, reward_swipe_coins=3200)
-                    await asyncio.sleep(random.randint(3, 5))
 
                 for (token, id, name) in accounts:
                     self.print_timestamp(
