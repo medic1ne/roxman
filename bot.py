@@ -487,7 +487,7 @@ if __name__ == '__main__':
             f"{Fore.YELLOW + Style.BRIGHT}[ Select An Option ]{Style.RESET_ALL}"
             f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
         ))
-        if initial_choice == 3:
+        if initial_choice == 1:
             accounts = int(input(
                 f"{Fore.YELLOW + Style.BRIGHT}[ How Much Account That You Want To Process Each Terminal ]{Style.RESET_ALL}"
                 f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
@@ -503,7 +503,7 @@ if __name__ == '__main__':
         elif initial_choice == 2:
             if not queries_files:
                 raise FileNotFoundError("No 'queries-*.txt' Files Found")
-        elif initial_choice == 1:
+        elif initial_choice == 3:
             queries = [line.strip() for line in open('data.txt') if line.strip()]
         else:
             raise ValueError("Invalid Initial Choice. Please Run The Script Again And Choose A Valid Option")
