@@ -387,64 +387,18 @@ if __name__ == '__main__':
         init(autoreset=True)
         major = Major()
 
-        queries_files = [f for f in os.listdir() if f.startswith('queries-') and f.endswith('.txt')]
-        queries_files.sort(key=lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else 0)
+        data_file = 'data.txt'
+        if not os.path.isfile(data_file):
+            raise FileNotFoundError(f"No '{data_file}' found.")
 
-        major.print_timestamp(
-            f"{Fore.MAGENTA + Style.BRIGHT}[ 1 ]{Style.RESET_ALL}"
-            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-            f"{Fore.CYAN + Style.BRIGHT}[ Use 'data.txt' Without Splitting ]{Style.RESET_ALL}"
-        )
+        major.print_timestamp(f"{Fore.CYAN + Style.BRIGHT}[ Loading Queries from '{data_file}' ]{Style.RESET_ALL}")
+        
+        # Load all queries from 'data.txt' directly
+        queries = major.load_queries(data_file)
 
-        initial_choice = int(input(
-            f"{Fore.BLUE + Style.BRIGHT}[ {datetime.now().astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}"
-            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-            f"{Fore.YELLOW + Style.BRIGHT}[ Select An Option ]{Style.RESET_ALL}"
-            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-        ))
-        if initial_choice == 1:
-            accounts = int(input(
-                f"{Fore.YELLOW + Style.BRIGHT}[ How Much Account That You Want To Process Each Terminal ]{Style.RESET_ALL}"
-                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-            ))
-            major.print_timestamp(f"{Fore.CYAN + Style.BRIGHT}[ Processing Queries To Generate Files ]{Style.RESET_ALL}")
-            major.process_queries(lines_per_file=accounts)
-
-            queries_files = [f for f in os.listdir() if f.startswith('queries-') and f.endswith('.txt')]
-            queries_files.sort(key=lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else 0)
-
-            if not queries_files:
-                raise FileNotFoundError("No 'queries-*.txt' Files Found")
-        elif initial_choice == 2:
-            if not queries_files:
-                raise FileNotFoundError("No 'queries-*.txt' Files Found")
-        elif initial_choice == 3:
-            queries = [line.strip() for line in open('data.txt') if line.strip()]
-        else:
-            raise ValueError("Invalid Initial Choice. Please Run The Script Again And Choose A Valid Option")
-
-        if initial_choice in [1, 2]:
-            major.print_timestamp(f"{Fore.MAGENTA + Style.BRIGHT}[ Select The Queries File To Use ]{Style.RESET_ALL}")
-            for i, queries_file in enumerate(queries_files, start=1):
-                major.print_timestamp(
-                    f"{Fore.MAGENTA + Style.BRIGHT}[ {i} ]{Style.RESET_ALL}"
-                    f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-                    f"{Fore.CYAN + Style.BRIGHT}[ {queries_file} ]{Style.RESET_ALL}"
-                )
-
-            choice = int(input(
-                f"{Fore.BLUE + Style.BRIGHT}[ {datetime.now().astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}"
-                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-                f"{Fore.YELLOW + Style.BRIGHT}[ Select 'queries-*.txt' File ]{Style.RESET_ALL}"
-                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
-            )) - 1
-            if choice < 0 or choice >= len(queries_files):
-                raise ValueError("Invalid Choice. Please Run The Script Again And Choose A Valid Option")
-
-            selected_file = queries_files[choice]
-            queries = major.load_queries(selected_file)
-
+        # Execute the main process with loaded queries
         asyncio.run(major.main(queries=queries))
+
     except (ValueError, IndexError, FileNotFoundError) as e:
         major.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ {str(e)} ]{Style.RESET_ALL}")
     except KeyboardInterrupt:
