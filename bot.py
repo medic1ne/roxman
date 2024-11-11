@@ -1,469 +1,536 @@
-import os
-import random
-import sys
-import requests
-import time
-import urllib.parse
-import json
-import base64
-import socket
-from datetime import datetime
+from colorama import *
+from datetime import datetime, timedelta
+from fake_useragent import FakeUserAgent
+from faker import Faker
+from urllib.parse import parse_qs
+import aiohttp, asyncio, json, os, random, re, sys
 
+class Major:
+    def __init__(self) -> None:
+        self.faker = Faker()
+        self.headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+            'Cache-Control': 'no-cache',
+            'Host': 'major.bot',
+            'Pragma': 'no-cache',
+            'Referer': 'https://major.bot/',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-origin',
+            'User-Agent': FakeUserAgent().random
+        }
+        self.print_ascii_banner()
 
+    def print_ascii_banner(self):
+        print(r"""
 
-headers = {
-    'Accept': 'application/json, text/plain, */*',
-    'Accept-Encoding': 'gzip, deflate, br, zstd',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Content-Type': 'application/json',
-    'Origin': 'https://major.bot',
-    'Priority': 'u=1, i',
-}
+,---.    ,---.   ____         .-./`)     ,-----.    .-------.
+|    \  /    | .'  __ `.      \ '_ .') .'  .-,  '.  |  _ _   \
+|  ,  \/  ,  |/   '  \  \    (_ (_) _)/ ,-.|  \ _ \ | ( ' )  |
+|  |\_   /|  ||___|  /  |      / .  \;  \  '_ /  | :|(_ o _) /
+|  _( )_/ |  |   _.-`   | ___  |-'`| |  _`,/ \ _/  || (_,_).' _
+| (_ o _) |  |.'   _    ||   | |   ' : (  '\_/ \   ;|  |\ \  | |
+|  (_,_)  |  ||  _( )_  ||   `-'  /   \ `"/  \  ) / |  | \ `'  /
+|  |      |  |\ (_ o _) / \      /     '. \_/``".'  |  |  \   /
+'--'      '--' '.(_,_).'   `-..-'        '-----'    ''-'   `-'
+                                                                  
+    Auto Claim Bot For  Major - MR X CRIMINAL
+    Author  : MR-X
+        """)
+        self.print_timestamp("[ System Initialized ]")
 
-def make_request(method, url, headers, json=None, params=None, data=None):
-    retry_count = 0
-    while True:
-        time.sleep(2)
-        if method.upper() == "GET":
-            if params:
-                response = requests.get(url, headers=headers, params=params)
-            elif json:
-                response = requests.get(url, headers=headers, json=json)
+    def clear_terminal(self):
+        os.system('cls' if os.name == 'nt' else 'clear')
+
+    def print_timestamp(self, message):
+        print(
+            f"{Fore.BLUE + Style.BRIGHT}[ {datetime.now().astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}"
+            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+            f"{message}",
+            flush=True
+        )
+
+    def load_queries(self, file_path):
+        with open(file_path, 'r') as file:
+            return [line.strip() for line in file if line.strip()]
+
+    def process_queries(self, lines_per_file: int):
+        if not os.path.exists('data.txt'):
+            raise FileNotFoundError(f"File 'data.txt' not found. Please ensure it exists.")
+
+        with open('data.txt', 'r') as f:
+            queries = [line.strip() for line in f if line.strip()]
+        if not queries:
+            raise ValueError("File 'data.txt' is empty.")
+
+        existing_queries = set()
+        for file in os.listdir():
+            if file.startswith('queries-') and file.endswith('.txt'):
+                with open(file, 'r') as qf:
+                    existing_queries.update(line.strip() for line in qf if line.strip())
+
+        new_queries = [query for query in queries if query not in existing_queries]
+        if not new_queries:
+            self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ No New Queries To Add ]{Style.RESET_ALL}")
+            return
+
+        files = [f for f in os.listdir() if f.startswith('queries-') and f.endswith('.txt')]
+        files.sort(key=lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else 0)
+
+        last_file_number = int(re.findall(r'\d+', files[-1])[0]) if files else 0
+
+        for i in range(0, len(new_queries), lines_per_file):
+            chunk = new_queries[i:i + lines_per_file]
+            if files and len(open(files[-1], 'r').readlines()) < lines_per_file:
+                with open(files[-1], 'a') as outfile:
+                    outfile.write('\n'.join(chunk) + '\n')
+                self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ Updated '{files[-1]}' ]{Style.RESET_ALL}")
             else:
-                response = requests.get(url, headers=headers)
-        elif method.upper() == "POST":
-            if json:
-                response = requests.post(url, headers=headers, json=json)
-            elif data:
-                response = requests.post(url, headers=headers, data=data)
-            else:
-                response = requests.post(url, headers=headers)
-        elif method.upper() == "PUT":
-            if json:
-                response = requests.put(url, headers=headers, json=json)
-            elif data:
-                response = requests.put(url, headers=headers, data=data)
-            else:
-                response = requests.put(url, headers=headers)
-        else:
-            raise ValueError("Invalid method. Only GET, PUT and POST are supported.")
-        if response.status_code >= 500:
-            if retry_count >= 4:
-                print_(f"Status Code : {response.status_code} | Server Down/Something")
-                return None
-            retry_count += 1
-        elif response.status_code >= 400:
-            print_(f"Status Code : {response.status_code} | Failed to get Coin")
+                last_file_number += 1
+                queries_file = f"queries-{last_file_number}.txt"
+                with open(queries_file, 'w') as outfile:
+                    outfile.write('\n'.join(chunk) + '\n')
+                self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ Generated '{queries_file}' ]{Style.RESET_ALL}")
+
+    async def generate_token(self, query: str):
+        url = 'https://major.bot/api/auth/tg/'
+        data = json.dumps({'init_data':query})
+        headers = {
+            **self.headers,
+            'Content-Length': str(len(data)),
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            await asyncio.sleep(random.randint(3, 5))
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url, headers=headers, data=data) as response:
+                    response.raise_for_status()
+                    tg_auth = await response.json()
+                    parsed_query = parse_qs(query)
+                    user_data_json = parsed_query['user'][0]
+                    user_data = json.loads(user_data_json)
+                    token = f"Bearer {tg_auth['access_token']}"
+                    id = user_data['id']
+                    name = user_data.get('first_name', self.faker.user_name())
+                    return (token, id, name)
+        except (aiohttp.ClientResponseError, aiohttp.ContentTypeError, Exception) as e:
+            self.print_timestamp(
+                f"{Fore.YELLOW + Style.BRIGHT}[ Failed To Process {query} ]{Style.RESET_ALL}"
+                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                f"{Fore.RED + Style.BRIGHT}[ {str(e)} ]{Style.RESET_ALL}"
+            )
             return None
-        elif response.status_code >= 200:
-            return response.json()
 
-def clear_terminal():
-    os.system('cls' if os.name == 'nt' else 'clear')
+    async def generate_tokens(self, queries):
+        tasks = [self.generate_token(query) for query in queries]
+        results = await asyncio.gather(*tasks)
+        return [result for result in results if result is not None]
 
-def load_credentials():
-    try:
-        with open('query_id.txt', 'r') as f:
-            queries = [line.strip() for line in f.readlines()]
-        return queries
-    except FileNotFoundError:
-        print_("File query_id.txt tidak ditemukan.")
-        return [  ]
-    except Exception as e:
-        print_("Terjadi kesalahan saat memuat token:", str(e))
-        return [  ]
+    async def visit(self, token: str):
+        url = 'https://major.bot/api/user-visits/visit/'
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': '0',
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers) as response:
+                    if response.status in [500, 520]:
+                        return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Daily Visit ]{Style.RESET_ALL}")
+                    response.raise_for_status()
+                    visit = await response.json()
+                    if visit['is_increased']:
+                        if visit['is_allowed']:
+                            return self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ Claimed Daily Visit ]{Style.RESET_ALL}")
+                        return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ Subscribe Major Community To Claim Your Daily Visit Bonus And Increase Your Streak ]{Style.RESET_ALL}")
+                    return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ Daily Visit Already Claimed ]{Style.RESET_ALL}")
+        except aiohttp.ClientResponseError as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Daily Visit: {str(e)} ]{Style.RESET_ALL}")
+        except (Exception, aiohttp.ContentTypeError) as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Daily Visit: {str(e)} ]{Style.RESET_ALL}")
 
-def getuseragent(index):
-    try:
-        with open('useragent.txt', 'r') as f:
-            useragent = [line.strip() for line in f.readlines()]
-        if index < len(useragent):
-            return useragent[index]
-        else:
-            return "Index out of range"
-    except FileNotFoundError:
-        return 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36'
-    except Exception as e:
-        return 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36'
-
-
-
-def postauth(query):
-    url = 'https://major.bot/api/auth/tg/'
-    data = {
-        'init_data': query,
-    }
-    try:
-        response = make_request('post', url, headers, json=data)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-    
-def getdaily(token):
-    url ='https://major.bot/api/tasks/?is_daily=true'
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('get', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-
-def gettask(token):
-    url ='https://major.bot/api/tasks/?is_daily=false'
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('get', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-
-def donetask(token, payload):
-    url = 'https://major.bot/api/tasks/'
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('post', url, headers, json=payload)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-
-def visit(token):
-    url = 'https://major.bot/api/user-visits/visit/?'
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('post', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-    
-def donate(token, amount):
-    url = 'https://major.bot/api/invoices/'
-    payload = {"amount":amount, 
-               "buy_for_user_id":5718268820}
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response_codes_done = range(200, 241)
-        response_code_failed = range(500, 540)
-        response_code_notfound = range(400, 440)
-        response = requests.post(url, headers, payload)
-        if response.status_code in response_codes_done:
-            return response.json()
-        elif response.status_code in response_code_failed:
-            print_(f"Response Code : {response.status_code} | Server Down")
+    async def streak(self, token: str):
+        url = 'https://major.bot/api/user-visits/streak/'
+        headers = {
+            **self.headers,
+            'Authorization': token
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.get(url=url, headers=headers) as response:
+                    if response.status in [500, 520]:
+                        self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Fetching Streak ]{Style.RESET_ALL}")
+                        return None
+                    response.raise_for_status()
+                    return await response.json()
+        except aiohttp.ClientResponseError as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Fetching Streak: {str(e)} ]{Style.RESET_ALL}")
             return None
-        elif response.status_code in response_code_notfound:
-            print_(response.text)
+        except (Exception, aiohttp.ContentTypeError) as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Fetching Streak: {str(e)} ]{Style.RESET_ALL}")
             return None
-        else:
-            raise Exception(f'Unexpected status code: {response.status_code}')
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
 
-def roulette(token):
-    url ='https://major.bot/api/roulette/'
-    headers['Authorization'] = f"Bearer {token}"
+    async def user(self, token: str, id: str):
+        url = f'https://major.bot/api/users/{id}/'
+        headers = {
+            **self.headers,
+            'Authorization': token
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.get(url=url, headers=headers) as response:
+                    if response.status in [500, 520]:
+                        self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Fetching User ]{Style.RESET_ALL}")
+                        return None
+                    response.raise_for_status()
+                    return await response.json()
+        except aiohttp.ClientResponseError as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Fetching User: {str(e)} ]{Style.RESET_ALL}")
+            return None
+        except (Exception, aiohttp.ContentTypeError) as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Fetching User: {str(e)} ]{Style.RESET_ALL}")
+            return None
 
-    try:
-        response = make_request('post', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
+    async def join_squad(self, token: str):
+        url = f'https://major.bot/api/squads/2245008508/join/'
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': '0',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers) as response:
+                    response.raise_for_status()
+                    join_squad = await response.json()
+                    if join_squad['status'] == 'ok': return True
+        except (Exception, aiohttp.ClientResponseError, aiohttp.ContentTypeError):
+            return False
 
-def join_squad(token):
-    url = 'https://major.bot/api/squads/2245008508/join/?'
-    headers['Authorization'] = f"Bearer {token}"
+    async def leave_squad(self, token: str):
+        url = f'https://major.bot/api/squads/leave/'
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': '0',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers) as response:
+                    response.raise_for_status()
+                    leave_squad = await response.json()
+                    if leave_squad['status'] == 'ok': return await self.join_squad(token=token)
+        except (Exception, aiohttp.ClientResponseError, aiohttp.ContentTypeError):
+            return False
 
-    try:
-        response = make_request('post', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
+    async def tasks(self, token: str, type: str):
+        url = f'https://major.bot/api/tasks/?is_daily={type}'
+        headers = {
+            **self.headers,
+            'Authorization': token
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.get(url=url, headers=headers) as response:
+                    if response.status in [500, 520]:
+                        self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Fetching Tasks ]{Style.RESET_ALL}")
+                        return None
+                    response.raise_for_status()
+                    return await response.json()
+        except aiohttp.ClientResponseError as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Fetching Tasks: {str(e)} ]{Style.RESET_ALL}")
+            return None
+        except (Exception, aiohttp.ContentTypeError) as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Fetching Tasks: {str(e)} ]{Style.RESET_ALL}")
+            return None
 
-def get_squad(token):
-    url = 'https://major.bot/api/squads/2245008508?'
-    headers['Authorization'] = f"Bearer {token}"
+    async def complete_task(self, token: str, task_title: str, task_award: int, payload: dict):
+        url = 'https://major.bot/api/tasks/'
+        data = json.dumps(payload)
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': str(len(data)),
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers, data=data) as response:
+                    if response.status == 400: return
+                    elif response.status in [500, 520]:
+                        return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Complete Tasks ]{Style.RESET_ALL}")
+                    response.raise_for_status()
+                    complete_task = await response.json()
+                    if complete_task['is_completed']:
+                        return self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ You\'ve Got {task_award} From {task_title} ]{Style.RESET_ALL}")
+                    return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ {task_title} Isn\'t Completed ]{Style.RESET_ALL}")
+        except aiohttp.ClientResponseError as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Complete Tasks: {str(e)} ]{Style.RESET_ALL}")
+        except (Exception, aiohttp.ContentTypeError) as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Complete Tasks: {str(e)} ]{Style.RESET_ALL}")
 
-    try:
-        response = make_request('get', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
+    async def task_answer(self):
+        url = 'https://raw.githubusercontent.com/Shyzg/major/refs/heads/main/answer.json'
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.get(url=url) as response:
+                    response.raise_for_status()
+                    response_answer = json.loads(await response.text())
+                    return response_answer['youtube']
+        except aiohttp.ClientResponseError as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Get Task Answer: {str(e)} ]{Style.RESET_ALL}")
+            return None
+        except (Exception, aiohttp.ContentTypeError) as e:
+            self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Get Task Answer: {str(e)} ]{Style.RESET_ALL}")
+            return None
 
-def claim_coins(token):
-    url = 'https://major.bot/api/bonuses/coins/'
-    coins = 915
-    payload = {"coins":coins}
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('post', url, headers, json=payload)
-        if response is not None:
-            if response.get('success') == True:
-                print_(f"Success Claim Hold Coin {coins} Coins ")
-            return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
+    async def coins(self, token: str, reward_coins: int):
+        url = 'https://major.bot/api/bonuses/coins/'
+        data = json.dumps({'coins':reward_coins})
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': str(len(data)),
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers, data=data) as response:
+                    if response.status == 400:
+                        error_coins = await response.json()
+                        if 'detail' in error_coins:
+                            if 'blocked_until' in error_coins['detail']:
+                                return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ Can Play Hold Coin At {datetime.fromtimestamp(error_coins['detail']['blocked_until']).astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}")
+                    elif response.status in [500, 520]:
+                        return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Play Hold Coin ]{Style.RESET_ALL}")
+                    response.raise_for_status()
+                    coins = await response.json()
+                    if coins['success']:
+                        return self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ You\'ve Got {reward_coins} From Hold Coin ]{Style.RESET_ALL}")
+        except aiohttp.ClientResponseError as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Play Hold Coins: {str(e)} ]{Style.RESET_ALL}")
+        except (Exception, aiohttp.ContentTypeError) as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Play Hold Coins: {str(e)} ]{Style.RESET_ALL}")
 
-def swipe_coin(token):
-    url = 'https://major.bot/api/swipe_coin/'
-    coins = random.randint(2500,3000)
-    payload = {"coins":coins}
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('post', url, headers, json=payload)
-        if response is not None:
-            if response.get('success') == True:
-                print_(f"Success Claim Swipe Coin {coins} Coins ")
-            return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
-    
-def get_detail(token, tgid):
-    url = f'https://major.bot/api/users/{tgid}/'
-    headers['Authorization'] = f"Bearer {token}"
-    try:
-        response = make_request('get', url, headers)
-        return response
-    except requests.exceptions.RequestException as e:
-        print_(f'Error making request: {e}')
-        return None
+    async def roulette(self, token: str):
+        url = 'https://major.bot/api/roulette/'
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': '0',
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers) as response:
+                    if response.status == 400:
+                        error_coins = await response.json()
+                        if 'detail' in error_coins:
+                            if 'blocked_until' in error_coins['detail']:
+                                return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ Can Play Roulette At {datetime.fromtimestamp(error_coins['detail']['blocked_until']).astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}")
+                    elif response.status in [500, 520]:
+                        return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Play Roulette ]{Style.RESET_ALL}")
+                    response.raise_for_status()
+                    roulette = await response.json()
+                    return self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ You\'ve Got {roulette['rating_award']} From Roulette ]{Style.RESET_ALL}")
+        except aiohttp.ClientResponseError as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Play Roulette: {str(e)} ]{Style.RESET_ALL}")
+        except (Exception, aiohttp.ContentTypeError) as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Play Rouelette: {str(e)} ]{Style.RESET_ALL}")
 
+    async def swipe_coin(self, token: str, reward_swipe_coins: int):
+        url = 'https://major.bot/api/swipe_coin/'
+        data = json.dumps({'coins':reward_swipe_coins})
+        headers = {
+            **self.headers,
+            'Authorization': token,
+            'Content-Length': str(len(data)),
+            'Content-Type': 'application/json',
+            'Origin': 'https://major.bot'
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=20)) as session:
+                async with session.post(url=url, headers=headers, data=data) as response:
+                    if response.status == 400:
+                        error_coins = await response.json()
+                        if 'detail' in error_coins:
+                            if 'blocked_until' in error_coins['detail']:
+                                return self.print_timestamp(f"{Fore.YELLOW + Style.BRIGHT}[ Can Play Swipe Coin At {datetime.fromtimestamp(error_coins['detail']['blocked_until']).astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}")
+                    elif response.status in [500, 520]:
+                        return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ Server Major Down While Play Swipe Coin ]{Style.RESET_ALL}")
+                    response.raise_for_status()
+                    swipe_coin = await response.json()
+                    if swipe_coin['success']:
+                        return self.print_timestamp(f"{Fore.GREEN + Style.BRIGHT}[ You\'ve Got {reward_swipe_coins} From Swipe Coin ]{Style.RESET_ALL}")
+        except aiohttp.ClientResponseError as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An HTTP Error Occurred While Play Swipe Coin: {str(e)} ]{Style.RESET_ALL}")
+        except (Exception, aiohttp.ContentTypeError) as e:
+            return self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ An Unexpected Error Occurred While Play Swipe Coin: {str(e)} ]{Style.RESET_ALL}")
 
-def print_(word):
-    now = datetime.now().isoformat(" ").split(".")[0]
-    print(f"[{now}] {word}")
+    async def main(self, queries: str):
+        while True:
+            try:
+                accounts = await self.generate_tokens(queries=queries)
+                total_rating = 0
 
-def convert_time(unix_time):
-    formatted_time = time.strftime("%H:%M:%S", time.gmtime(unix_time))
-    return formatted_time
+                for (token, id, name) in accounts:
+                    self.print_timestamp(
+                        f"{Fore.WHITE + Style.BRIGHT}[ Information ]{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                        f"{Fore.CYAN + Style.BRIGHT}[ {name} ]{Style.RESET_ALL}"
+                    )
+                    await self.visit(token=token)
+                    streak = await self.streak(token=token)
+                    await asyncio.sleep(random.randint(3, 5))
+                    user = await self.user(token=token, id=id)
+                    await asyncio.sleep(random.randint(3, 5))
+                    if user is not None:
+                        self.print_timestamp(
+                            f"{Fore.GREEN + Style.BRIGHT}[ Balance {user['rating']} ]{Style.RESET_ALL}"
+                            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                            f"{Fore.BLUE + Style.BRIGHT}[ Streak {streak['streak'] if streak else 0} ]{Style.RESET_ALL}"
+                        )
+                        if user['squad_id'] is None:
+                            await self.join_squad(token=token)
+                            await asyncio.sleep(random.randint(3, 5))
+                        elif user['squad_id'] != 2245008508:
+                            await self.leave_squad(token=token)
+                            await asyncio.sleep(random.randint(3, 5))
 
-def main():
-    selector_task = input("auto clear single task y/n : ").strip().lower()
-    selector_daily = input("auto clear daily task y/n : ").strip().lower()
-    while True:
-        majors = 0
-        delay_time = (8 * 3900)
-        start_time = time.time()
-        queries = load_credentials()
-        sum = len(queries)
-        for index, query in enumerate(queries):
-            useragent = getuseragent(index)
-            headers['User-Agent'] = useragent
-            print_(f"========== Account {index+1} ==========")
-            time.sleep(1)
-            data_auth = postauth(query)
-            print_(f"refresh token....")
-            time.sleep(2)
-            if data_auth is not None:
-                token = data_auth.get('access_token')
-                user = data_auth.get('user')
-                ratings = user.get('rating')
-                id = user.get('id')
-                squad_id = user.get('squad_id')
+                for (token, id, name) in accounts:
+                    self.print_timestamp(
+                        f"{Fore.WHITE + Style.BRIGHT}[ Games ]{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                        f"{Fore.CYAN + Style.BRIGHT}[ {name} ]{Style.RESET_ALL}"
+                    )
+                    await self.get_choices_durov(token=token)
+                    await asyncio.sleep(random.randint(3, 5))
+                    await self.coins(token=token, reward_coins=915)
+                    await asyncio.sleep(random.randint(3, 5))
+                    await self.roulette(token=token)
+                    await asyncio.sleep(random.randint(3, 5))
+                    await self.swipe_coin(token=token, reward_swipe_coins=3200)
+                    await asyncio.sleep(random.randint(3, 5))
 
-                detail = get_detail(token, id)
-                if detail is not None:
-                    ratings = detail.get('rating', 0)
-                print_(f"TGID : {user.get('id')} | Name : {user.get('first_name')} {user.get('last_name')} | point : {ratings}")
-                majors += ratings
-
-                time.sleep(2)
-                if squad_id == None:
-                    print_('No Have Squad')
-                    time.sleep(2)
-                    print_('Joining Squad....')
-                    time.sleep(2)
-                    data_squad = join_squad(token)
-                    if data_squad is not None:
-                        print_("Join Squad Done")
-                else:
-                    data_squad = get_squad(token)
-                    if data_squad is not None:
-                        print_(f"Squad : {data_squad.get('name')} | Member : {data_squad.get('members_count')} | Ratings : {data_squad.get('rating')}")
-
-                time.sleep(1)
-                data_visit = visit(token)
-                if data_visit is not None:
-                    print_(f"Login Streak : {data_visit.get('streak')}")
-                    time.sleep(1)
-                print_('Start Hold Coin')
-                time.sleep(2)
-                claim_coins(token)
-                print_('Start Swipe Coin')
-                time.sleep(2)
-                swipe_coin(token)
-                time.sleep(1)
-
-                print_("Spin Roulette")
-                data_roulette = roulette(token)
-                if data_roulette is not None:
-                    time.sleep(3)
-                    reward = data_roulette.get('rating_award')
-                    if reward is not None:
-                        print_(f"Success Reward Roulette : {data_roulette.get('rating_award')}")
-
-                if selector_daily == "y":
-                    print_('Get daily Task')
-                    data_daily = getdaily(token)
-                    if data_daily is not None:
-                        if len(data_daily) > 0:
-                            for daily in reversed(data_daily):
-                                id = daily.get('id')
-                                type = daily.get('type')
-                                title = daily.get('title')
-                                is_completed = daily.get('is_completed')
-                                if 'stars' in title.lower():
-                                    print_(f"Skip Task : {title}")
-                                    continue
-                                if 'promote' in title.lower():
-                                    print_(f"Skip Task : {title}")
-                                    continue
-                                if title not in ["Donate rating", "Invite more Friends", "Boost Major channel", "Boost Roxman channel"]:
-                                    if is_completed == False:
-                                        time.sleep(2)
-                                        payload = {
-                                            'task_id': id
-                                        }
-                                        data_done = donetask(token, payload)
-                                        if data_done is not None:
-                                            print_(f"Task : {daily.get('title')} | Reward : {daily.get('award')} | Status: {data_done.get('is_completed')}")
-                        else:
-                            print_('No have daily task')
-
-                if selector_task == "y":
-                    print_('Get Single Task')
-                    data_task = gettask(token)
-                    if data_task is not None:
-                        if len(data_task) > 0:
-                            for task in data_task:
-                                id = task.get('id')
-                                type = task.get('type')
-                                title = task.get('title')
-                                if title not in ["One-time Stars Purchase", "Binance x TON", "Status Purchase"]:
-                                    time.sleep(2)
-                                    if type == 'code':
-                                            payload = {"task_id":id,"payload":{"code":""}}
+                for (token, id, name) in accounts:
+                    self.print_timestamp(
+                        f"{Fore.WHITE + Style.BRIGHT}[ Tasks ]{Style.RESET_ALL}"
+                        f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                        f"{Fore.CYAN + Style.BRIGHT}[ {name} ]{Style.RESET_ALL}"
+                    )
+                    for type in ['true', 'false']:
+                        tasks = await self.tasks(token=token, type=type)
+                        await asyncio.sleep(random.randint(3, 5))
+                        if tasks is not None:
+                            for task in tasks:
+                                if not task['is_completed']:
+                                    if task['type'] == 'code':
+                                        task_answer = await self.task_answer()
+                                        if task_answer is not None:
+                                            if task['title'] in task_answer:
+                                                answer = task_answer[task['title']]
+                                                await self.complete_task(token=token, task_title=task['title'], task_award=task['award'], payload={"task_id":task['id'],"payload":{'code':answer}})
+                                                await asyncio.sleep(random.randint(3, 5))
                                     else:
-                                        payload = {
-                                                    'task_id': id
-                                                }
-                                    data_done = donetask(token, payload)
-                                    if data_done is not None:
-                                            print_(f"Task : {title} | Reward : {task.get('award')} | Status: {data_done.get('is_completed')}")
-                        else:
-                            print_('No have single task')
-                time.sleep(3)
-                # if index != 0:
-                #     if ratings >= 2500:
-                #         amount = 2500
-                #     elif ratings >= 1000:
-                #         amount = 1000
-                #     elif ratings >= 500:
-                #         amount = 500
-                #     elif ratings >= 250:
-                #         amount = 250
-                #     else:
-                #         amount = 100
-                #     data_donate = donate(token, amount)
-                #     if data_donate is not None:
-                #         print_(f"Donate amount {amount}")
-            else:
-                print_('User Not Found')
-        end_time = time.time()
-        total_time = delay_time - (end_time-start_time)
-        print_(" ======================================================")
-        print_(f"Total Account : {sum} | Total Ratings Majors: {majors}")
-        print_(" ======================================================")
-        print_delay(total_time)
+                                        await self.complete_task(token=token, task_title=task['title'], task_award=task['award'], payload={"task_id":task['id']})
+                                        await asyncio.sleep(random.randint(3, 5))
+                    user = await self.user(token=token, id=id)
+                    await asyncio.sleep(random.randint(3, 5))
+                    total_rating += user['rating'] if user else 0
 
-def print_delay(delay):
-    while delay > 0:
-        now = datetime.now().isoformat(" ").split(".")[0]
-        hours, remainder = divmod(delay, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        sys.stdout.write(f"\r{now} | Waiting Time: {round(hours)} hours, {round(minutes)} minutes, and {round(seconds)} seconds")
-        sys.stdout.flush()
-        time.sleep(1)
-        delay -= 1
-    print_("\nWaiting Done, Starting....\n")
+                self.print_timestamp(
+                    f"{Fore.CYAN + Style.BRIGHT}[ Total Account {len(accounts)} ]{Style.RESET_ALL}"
+                    f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                    f"{Fore.GREEN + Style.BRIGHT}[ Total Rating {total_rating} ]{Style.RESET_ALL}"
+                )
 
-def quest_main():
-    queries = load_credentials()
-    input_string = input("input number (ex:14,2,3,4) : ").strip().lower()
-    input_youtube = input("input code from youtube : ").strip().lower()
-    if input_string != 'n':
-        input_data = [int(x) for x in input_string.split(",")]
-        payload = {"choice_{}".format(i+1): value for i, value in enumerate(input_data)}
-    for index, query in enumerate(queries):
-        useragent = getuseragent(index)
-        headers['User-Agent'] = useragent
-        print_(f"========== Account {index+1} ==========")
-        time.sleep(1)
-        data_auth = postauth(query)
-        print_(f"refresh token....")
-        time.sleep(2)
-        if data_auth is not None:
-            token = data_auth.get('access_token')
-            user = data_auth.get('user')
-            ratings = user.get('rating')
-            id = user.get('id')
-            squad_id = user.get('squad_id')
-            detail = get_detail(token, id)
-            if detail is not None:
-                ratings = detail.get('rating', 0)
-            print_(f"TGID : {user.get('id')} | Name : {user.get('first_name')} {user.get('last_name')} | point : {ratings}")
-            if input_youtube != 'n':
-                print_('Get Single Task')
-                data_task = gettask(token)
-                if data_task is not None:
-                    if len(data_task) > 0:
-                        for task in data_task:
-                            id = task.get('id')
-                            type = task.get('type')
-                            title = task.get('title')
-                            if title not in ["One-time Stars Purchase", "Binance x TON", "Status Purchase"]:
-                                time.sleep(2)
-                                if type == 'code':
-                                        payload = {"task_id":id,"payload":{"code":input_youtube}}
-                                else:
-                                    payload = {
-                                                'task_id': id
-                                            }
-                                if 'youtube' in title.lower():
-                                    data_done = donetask(token, payload)
-                                    if data_done is not None:
-                                            print_(f"Task : {title} | Reward : {task.get('award')} | Status: {data_done.get('is_completed')}")
-                else:
-                    print_('No have single task')
+                sleep_timestamp = (datetime.now().astimezone() + timedelta(seconds=1800)).strftime('%X %Z')
+                self.print_timestamp(f"{Fore.CYAN + Style.BRIGHT}[ Restarting At {sleep_timestamp} ]{Style.RESET_ALL}")
 
-def start():
-    print(r"""
-        
-                    MAJOR BOT
-    find new airdrop & bot here: t.me/sansxgroup
-              
-        select this one :
-        1. claim daily
-        2. clear quest game  
-          
-          """)
-    selector = input("Select the one  : ").strip().lower()
+                await asyncio.sleep(1800)
+                self.clear_terminal()
+            except Exception as e:
+                self.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ {str(e)} ]{Style.RESET_ALL}")
+                continue
 
-    if selector == '1':
-        main()
-    elif selector == '2':
-        quest_main()
-    else:
-        exit()
+if __name__ == '__main__':
+    try:
+        if hasattr(asyncio, 'WindowsSelectorEventLoopPolicy'):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-if __name__ == "__main__":
-    start()
+        init(autoreset=True)
+        major = Major()
+
+        queries_files = [f for f in os.listdir() if f.startswith('queries-') and f.endswith('.txt')]
+        queries_files.sort(key=lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else 0)
+
+        major.print_timestamp(
+            f"{Fore.MAGENTA + Style.BRIGHT}[ 1 ]{Style.RESET_ALL}"
+            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+            f"{Fore.CYAN + Style.BRIGHT}[ Use 'data.txt' Without Splitting ]{Style.RESET_ALL}"
+        )
+
+        initial_choice = int(input(
+            f"{Fore.BLUE + Style.BRIGHT}[ {datetime.now().astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}"
+            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+            f"{Fore.YELLOW + Style.BRIGHT}[ Select An Option ]{Style.RESET_ALL}"
+            f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+        ))
+        if initial_choice == 3:
+            accounts = int(input(
+                f"{Fore.YELLOW + Style.BRIGHT}[ How Much Account That You Want To Process Each Terminal ]{Style.RESET_ALL}"
+                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+            ))
+            major.print_timestamp(f"{Fore.CYAN + Style.BRIGHT}[ Processing Queries To Generate Files ]{Style.RESET_ALL}")
+            major.process_queries(lines_per_file=accounts)
+
+            queries_files = [f for f in os.listdir() if f.startswith('queries-') and f.endswith('.txt')]
+            queries_files.sort(key=lambda x: int(re.findall(r'\d+', x)[0]) if re.findall(r'\d+', x) else 0)
+
+            if not queries_files:
+                raise FileNotFoundError("No 'queries-*.txt' Files Found")
+        elif initial_choice == 2:
+            if not queries_files:
+                raise FileNotFoundError("No 'queries-*.txt' Files Found")
+        elif initial_choice == 1:
+            queries = [line.strip() for line in open('data.txt') if line.strip()]
+        else:
+            raise ValueError("Invalid Initial Choice. Please Run The Script Again And Choose A Valid Option")
+
+        if initial_choice in [1, 2]:
+            major.print_timestamp(f"{Fore.MAGENTA + Style.BRIGHT}[ Select The Queries File To Use ]{Style.RESET_ALL}")
+            for i, queries_file in enumerate(queries_files, start=1):
+                major.print_timestamp(
+                    f"{Fore.MAGENTA + Style.BRIGHT}[ {i} ]{Style.RESET_ALL}"
+                    f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                    f"{Fore.CYAN + Style.BRIGHT}[ {queries_file} ]{Style.RESET_ALL}"
+                )
+
+            choice = int(input(
+                f"{Fore.BLUE + Style.BRIGHT}[ {datetime.now().astimezone().strftime('%x %X %Z')} ]{Style.RESET_ALL}"
+                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+                f"{Fore.YELLOW + Style.BRIGHT}[ Select 'queries-*.txt' File ]{Style.RESET_ALL}"
+                f"{Fore.WHITE + Style.BRIGHT} | {Style.RESET_ALL}"
+            )) - 1
+            if choice < 0 or choice >= len(queries_files):
+                raise ValueError("Invalid Choice. Please Run The Script Again And Choose A Valid Option")
+
+            selected_file = queries_files[choice]
+            queries = major.load_queries(selected_file)
+
+        asyncio.run(major.main(queries=queries))
+    except (ValueError, IndexError, FileNotFoundError) as e:
+        major.print_timestamp(f"{Fore.RED + Style.BRIGHT}[ {str(e)} ]{Style.RESET_ALL}")
+    except KeyboardInterrupt:
+        sys.exit(0)
